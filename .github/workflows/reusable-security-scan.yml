@@ -1,0 +1,72 @@
+# Hardened, reusable security scanning workflow (Trivy filesystem + CodeQL).
+# Call it from a consumer repo:
+#
+#   jobs:
+#     scan:
+#       uses: abhisheksawant52/github-actions-enterprise-templates/.github/workflows/reusable-security-scan.yml@main
+#       with:
+#         languages: '["python"]'
+name: Reusable Security Scan
+
+on:
+  workflow_call:
+    inputs:
+      languages:
+        description: JSON array of CodeQL languages to analyze.
+        type: string
+        default: '["python"]'
+      trivy-severity:
+        description: Comma-separated severities Trivy should fail on.
+        type: string
+        default: "CRITICAL,HIGH"
+      run-codeql:
+        description: Whether to run CodeQL analysis.
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  trivy:
+    name: Trivy filesystem scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run Trivy
+        uses: aquasecurity/trivy-action@0.24.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          format: sarif
+          output: trivy-results.sarif
+          severity: ${{ inputs.trivy-severity }}
+      - name: Upload Trivy SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-results.sarif
+          category: trivy
+
+  codeql:
+    name: CodeQL (${{ matrix.language }})
+    if: ${{ inputs.run-codeql }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        language: ${{ fromJSON(inputs.languages) }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v3
+      - name: Perform CodeQL analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:${{ matrix.language }}"

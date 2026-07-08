@@ -1,0 +1,61 @@
+# Hardened, reusable Node.js CI workflow.
+# Call it from a consumer repo:
+#
+#   jobs:
+#     ci:
+#       uses: abhisheksawant52/github-actions-enterprise-templates/.github/workflows/reusable-node-ci.yml@main
+#       with:
+#         node-versions: '["20", "22"]'
+#         package-manager: npm
+name: Reusable Node CI
+
+on:
+  workflow_call:
+    inputs:
+      node-versions:
+        description: JSON array of Node.js versions to test against.
+        type: string
+        default: '["20", "22"]'
+      package-manager:
+        description: Package manager to use (npm, yarn or pnpm).
+        type: string
+        default: npm
+      working-directory:
+        description: Directory containing the Node.js project.
+        type: string
+        default: "."
+      build-script:
+        description: npm script to run for the build step (empty to skip).
+        type: string
+        default: build
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test (node${{ matrix.node-version }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: ${{ fromJSON(inputs.node-versions) }}
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: ${{ inputs.package-manager }}
+      - name: Install dependencies
+        run: ${{ inputs.package-manager }} ci
+      - name: Lint
+        run: ${{ inputs.package-manager }} run lint --if-present
+      - name: Test
+        run: ${{ inputs.package-manager }} test --if-present
+      - name: Build
+        if: ${{ inputs.build-script != '' }}
+        run: ${{ inputs.package-manager }} run ${{ inputs.build-script }} --if-present

@@ -1,0 +1,58 @@
+# Hardened, reusable release workflow: derive a version, tag, and publish a
+# GitHub Release with generated notes.
+# Call it from a consumer repo:
+#
+#   jobs:
+#     release:
+#       uses: abhisheksawant52/github-actions-enterprise-templates/.github/workflows/reusable-release.yml@main
+#       with:
+#         release-as: minor
+name: Reusable Release
+
+on:
+  workflow_call:
+    inputs:
+      release-as:
+        description: Semantic bump to apply (major, minor or patch).
+        type: string
+        default: patch
+      tag-prefix:
+        description: Prefix for the created git tag.
+        type: string
+        default: "v"
+      draft:
+        description: Whether to create the release as a draft.
+        type: boolean
+        default: false
+    outputs:
+      version:
+        description: The version that was released.
+        value: ${{ jobs.release.outputs.version }}
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Tag and release
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Compute next version
+        id: version
+        uses: ./actions/semantic-version
+        with:
+          release-as: ${{ inputs.release-as }}
+          tag-prefix: ${{ inputs.tag-prefix }}
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: ${{ steps.version.outputs.tag }}
+          draft: ${{ inputs.draft }}
+          generate_release_notes: true

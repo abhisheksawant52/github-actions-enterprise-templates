@@ -1,0 +1,50 @@
+name: Semantic Version
+description: >-
+  Compute the next semantic version from the latest git tag and a requested
+  bump (major, minor or patch). Emits both the bare version and the prefixed
+  tag.
+
+inputs:
+  release-as:
+    description: Which component to bump (major, minor or patch).
+    required: false
+    default: patch
+  tag-prefix:
+    description: Prefix applied to the emitted tag.
+    required: false
+    default: "v"
+
+outputs:
+  version:
+    description: The computed version without prefix (e.g. 1.4.0).
+    value: ${{ steps.compute.outputs.version }}
+  tag:
+    description: The computed tag with prefix (e.g. v1.4.0).
+    value: ${{ steps.compute.outputs.tag }}
+
+runs:
+  using: composite
+  steps:
+    - name: Compute next version
+      id: compute
+      shell: bash
+      env:
+        RELEASE_AS: ${{ inputs.release-as }}
+        TAG_PREFIX: ${{ inputs.tag-prefix }}
+      run: |
+        set -euo pipefail
+        latest="$(git tag --list "${TAG_PREFIX}*" --sort=-v:refname | head -n1)"
+        current="${latest#"${TAG_PREFIX}"}"
+        current="${current:-0.0.0}"
+        IFS='.' read -r major minor patch <<< "${current}"
+        major="${major:-0}"; minor="${minor:-0}"; patch="${patch:-0}"
+        case "${RELEASE_AS}" in
+          major) major=$((major + 1)); minor=0; patch=0 ;;
+          minor) minor=$((minor + 1)); patch=0 ;;
+          patch) patch=$((patch + 1)) ;;
+          *) echo "Unknown release-as: ${RELEASE_AS}" >&2; exit 1 ;;
+        esac
+        version="${major}.${minor}.${patch}"
+        echo "version=${version}" >> "${GITHUB_OUTPUT}"
+        echo "tag=${TAG_PREFIX}${version}" >> "${GITHUB_OUTPUT}"
+        echo "Next version: ${TAG_PREFIX}${version}"

@@ -1,0 +1,44 @@
+name: Notify Slack
+description: >-
+  Post a workflow status message to a Slack Incoming Webhook. Fails softly when
+  no webhook is configured so it is safe to add to forks.
+
+inputs:
+  webhook-url:
+    description: Slack Incoming Webhook URL (pass via secrets).
+    required: true
+  status:
+    description: Outcome to report (success, failure or cancelled).
+    required: false
+    default: success
+  message:
+    description: Custom message body.
+    required: false
+    default: "Workflow completed."
+
+runs:
+  using: composite
+  steps:
+    - name: Send Slack notification
+      shell: bash
+      env:
+        WEBHOOK_URL: ${{ inputs.webhook-url }}
+        STATUS: ${{ inputs.status }}
+        MESSAGE: ${{ inputs.message }}
+        REPO: ${{ github.repository }}
+        RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      run: |
+        set -euo pipefail
+        if [ -z "${WEBHOOK_URL}" ]; then
+          echo "No Slack webhook configured; skipping notification."
+          exit 0
+        fi
+        case "${STATUS}" in
+          success) emoji=":white_check_mark:" ;;
+          failure) emoji=":x:" ;;
+          *) emoji=":warning:" ;;
+        esac
+        payload="$(printf '{"text":"%s *%s* — %s\n%s\n%s"}' \
+          "${emoji}" "${STATUS}" "${REPO}" "${MESSAGE}" "${RUN_URL}")"
+        curl -sS -X POST -H 'Content-Type: application/json' \
+          --data "${payload}" "${WEBHOOK_URL}"

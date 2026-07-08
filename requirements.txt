@@ -1,0 +1,4 @@
+# Runtime dependencies for the gha-validator linter.
+# Development tooling lives in the "dev" extra of pyproject.toml.
+click>=8.1
+PyYAML>=6.0

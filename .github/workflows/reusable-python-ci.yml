@@ -1,0 +1,59 @@
+# Hardened, reusable Python CI workflow.
+# Call it from a consumer repo:
+#
+#   jobs:
+#     ci:
+#       uses: abhisheksawant52/github-actions-enterprise-templates/.github/workflows/reusable-python-ci.yml@main
+#       with:
+#         python-versions: '["3.11", "3.12"]'
+#         working-directory: .
+name: Reusable Python CI
+
+on:
+  workflow_call:
+    inputs:
+      python-versions:
+        description: JSON array of Python versions to test against.
+        type: string
+        default: '["3.11", "3.12"]'
+      working-directory:
+        description: Directory containing the Python project.
+        type: string
+        default: "."
+      run-lint:
+        description: Whether to run ruff and black checks.
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test (py${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ${{ fromJSON(inputs.python-versions) }}
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+      - name: Lint
+        if: ${{ inputs.run-lint }}
+        run: |
+          ruff check .
+          black --check .
+      - name: Test
+        run: pytest

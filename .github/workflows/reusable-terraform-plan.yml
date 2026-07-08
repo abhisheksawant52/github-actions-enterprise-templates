@@ -1,0 +1,65 @@
+# Hardened, reusable Terraform plan workflow.
+# Call it from a consumer repo:
+#
+#   jobs:
+#     plan:
+#       uses: abhisheksawant52/github-actions-enterprise-templates/.github/workflows/reusable-terraform-plan.yml@main
+#       with:
+#         working-directory: environments/dev
+#       secrets:
+#         cloud-credentials: ${{ secrets.AWS_ROLE_ARN }}
+name: Reusable Terraform Plan
+
+on:
+  workflow_call:
+    inputs:
+      working-directory:
+        description: Directory containing the Terraform root module.
+        type: string
+        default: "."
+      terraform-version:
+        description: Terraform version to install.
+        type: string
+        default: "1.9.5"
+      var-file:
+        description: Optional tfvars file to pass to plan (empty to skip).
+        type: string
+        default: ""
+    secrets:
+      cloud-credentials:
+        description: Optional cloud credential/role reference for the provider.
+        required: false
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  plan:
+    name: Terraform plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    env:
+      TF_CLOUD_CREDENTIALS: ${{ secrets.cloud-credentials }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ inputs.terraform-version }}
+      - name: Format check
+        run: terraform fmt -check -recursive
+      - name: Init
+        run: terraform init -backend=false
+      - name: Validate
+        run: terraform validate
+      - name: Plan
+        run: |
+          if [ -n "${{ inputs.var-file }}" ]; then
+            terraform plan -input=false -no-color -var-file="${{ inputs.var-file }}"
+          else
+            terraform plan -input=false -no-color
+          fi
